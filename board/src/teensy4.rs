@@ -32,11 +32,11 @@ pub type Led = hal::gpio::Output<iomuxc::gpio_b0::GPIO_B0_03>;
 /// LED output repurposed for SPI SCLK.
 pub type Led = ();
 
-/// The board's "button" on pin 7.
+/// The board's "button" on pin 32.
 ///
-/// Connect a normally-open switch from pin 7 to GND.
-pub type Button = hal::gpio::Input<iomuxc::gpio_b1::GPIO_B1_01>;
-type ButtonPad = iomuxc::gpio_b1::GPIO_B1_01;
+/// Connect a normally-open switch from pin 32 to GND.
+pub type Button = hal::gpio::Input<iomuxc::gpio_b0::GPIO_B0_12>;
+type ButtonPad = iomuxc::gpio_b0::GPIO_B0_12;
 
 /// The UART console. Baud specified in lib.rs.
 pub type Console = hal::lpuart::Lpuart<ConsolePins, 2>;
@@ -66,6 +66,15 @@ pub type I2cPins = hal::lpi2c::Pins<
 >;
 
 pub type I2c = hal::lpi2c::Lpi2c<I2cPins, 3>;
+
+/// SAI, hardcoded for the teensy4 audio board add-on
+pub type SaiPins = hal::sai::Pins<
+    iomuxc::gpio_ad_b1::GPIO_AD_B1_09, // MCLK, P23
+    iomuxc::gpio_ad_b1::GPIO_AD_B1_11, // BCLK, P21
+    iomuxc::gpio_ad_b1::GPIO_AD_B1_10, // LRCLK, P20
+    iomuxc::gpio_b1::GPIO_B1_01, // DOUT, P7
+>;
+pub type Sai = hal::sai::Sai<SaiPins, 1>;
 
 /// PWM components.
 pub mod pwm {
@@ -113,6 +122,7 @@ pub struct Specifics {
     pub spi: Spi,
     pub i2c: I2c,
     pub pwm: Pwm,
+    pub sai: Sai,
     pub trng: hal::trng::Trng,
     pub tempmon: hal::tempmon::TempMon,
 }
@@ -131,7 +141,7 @@ impl Specifics {
         #[cfg(feature = "spi")]
         let led = ();
 
-        let button = gpio2.input(iomuxc.gpio_b1.p01);
+        let button = gpio2.input(iomuxc.gpio_b0.p12);
 
         let lpuart2 = unsafe { ral::lpuart::LPUART2::instance() };
         let mut console = hal::lpuart::Lpuart::new(
@@ -175,6 +185,19 @@ impl Specifics {
             &super::I2C_BAUD_RATE,
         );
 
+        let sai = 
+        {
+            let sai1 = unsafe { ral::sai::SAI1::instance() };
+            let pins = SaiPins {
+                mclk: iomuxc.gpio_ad_b1.p09,
+                bclk: iomuxc.gpio_ad_b1.p11,
+                lrclk: iomuxc.gpio_ad_b1.p10,
+                data: iomuxc.gpio_b1.p01,
+            };
+            let sai = Sai::new( sai1, pins);
+            sai
+        };
+
         let flexpwm2 = unsafe { ral::pwm::PWM2::instance() };
         let pwm = {
             let (pwm, (_, _, sm, _)) = hal::flexpwm::new(flexpwm2);
@@ -202,6 +225,7 @@ impl Specifics {
             button,
             ports: GpioPorts { gpio2 },
             console,
+            sai,
             spi,
             i2c,
             pwm,
@@ -230,7 +254,7 @@ pub(crate) const CLOCK_GATES: &[clock_gate::Locator] = &[
 fn configure_pins(
     super::Pads {
         ref mut gpio_ad_b1,
-        ref mut gpio_b1,
+        ref mut gpio_b0,
         ..
     }: &mut super::Pads,
 ) {
@@ -249,7 +273,7 @@ fn configure_pins(
         .set_pull_keeper(Some(iomuxc::PullKeeper::Pullup100k))
         .set_hysteresis(iomuxc::Hysteresis::Enabled);
 
-    let button: &mut ButtonPad = &mut gpio_b1.p01;
+    let button: &mut ButtonPad = &mut gpio_b0.p12;
     iomuxc::configure(button, BUTTON_CONFIG);
 }
 

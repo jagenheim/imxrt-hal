@@ -403,3 +403,86 @@ pub mod lpspi_clk {
         ral::modify_reg!(ral::ccm, ccm, CBCMR, LPSPI_CLK_SEL: selection as u32);
     }
 }
+
+/// SAI clock root.
+///
+/// `sai_clk` provides the clock source for all SAI peripherals
+///
+/// # Example
+///
+/// ```no_run
+/// use imxrt_hal as hal;
+/// use hal::ccm::{lpspi_clk, clock_gate};
+/// use hal::ccm::analog::pll2;
+///
+/// use imxrt_ral as ral;
+///
+/// const LPSPI_CLK_DIVIDER: u32 = 8;
+/// const LPSPI_CLK_HZ: u32 = pll2::FREQUENCY / LPSPI_CLK_DIVIDER;
+///
+/// # fn opt() -> Option<()> {
+/// let mut ccm = unsafe { ral::ccm::CCM::instance() };
+/// clock_gate::lpspi::<2>().set(&mut ccm, clock_gate::OFF);
+/// lpspi_clk::set_selection(&mut ccm, lpspi_clk::Selection::Pll2);
+/// lpspi_clk::set_divider(&mut ccm, LPSPI_CLK_DIVIDER);
+///
+/// clock_gate::lpspi::<2>().set(&mut ccm, clock_gate::ON);
+/// # Some(()) }
+/// ```
+pub mod sai_clk {
+    use crate::ral::{self, ccm::CCM};
+
+    /// Returns the LPSPI clock divider.
+    #[inline(always)]
+    pub fn divider(ccm: &CCM) -> u32 {
+        ral::read_reg!(ral::ccm, ccm, CBCMR, LPSPI_PODF) + 1
+    }
+
+    /// The smallest LPSPI clock divider.
+    pub const MIN_DIVIDER: u32 = 1;
+    /// The largest LPSPI clock divider.
+    pub const MAX_DIVIDER: u32 = 8;
+
+    /// Set the LPSPI clock divider.
+    ///
+    /// The implementation clamps `divider` between [`MIN_DIVIDER`] and [`MAX_DIVIDER`].
+    #[inline(always)]
+    pub fn set_divider(ccm: &mut CCM, divider: u32) {
+        // 1010 MCUs support an extra bit in this field, so this
+        // could be a max of 16 for those chips.
+        let podf = divider.clamp(MIN_DIVIDER, MAX_DIVIDER) - 1;
+        ral::modify_reg!(ral::ccm, ccm, CBCMR, LPSPI_PODF: podf);
+    }
+
+    /// LPSPI clock selections.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[repr(u32)]
+    pub enum Selection {
+        /// Derive from PLL3_PFD1.
+        Pll3Pfd1 = 0,
+        /// Derive from the PLL3_PFD0.
+        Pll3Pfd0 = 1,
+        /// Derive from PLL2.
+        Pll2 = 2,
+        /// Derive from PLL2_PFD2.
+        Pll2Pfd2 = 3,
+    }
+
+    /// Returns the LPSPI clock selection.
+    #[inline(always)]
+    pub fn selection(ccm: &CCM) -> Selection {
+        match ral::read_reg!(ral::ccm, ccm, CBCMR, LPSPI_CLK_SEL) {
+            0 => Selection::Pll3Pfd1,
+            1 => Selection::Pll3Pfd0,
+            2 => Selection::Pll2,
+            3 => Selection::Pll2Pfd2,
+            _ => unreachable!(),
+        }
+    }
+
+    /// Set the LPSPI clock selection.
+    #[inline(always)]
+    pub fn set_selection(ccm: &mut CCM, selection: Selection) {
+        ral::modify_reg!(ral::ccm, ccm, CBCMR, LPSPI_CLK_SEL: selection as u32);
+    }
+}

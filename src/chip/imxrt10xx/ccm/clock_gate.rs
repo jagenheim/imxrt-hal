@@ -362,6 +362,20 @@ pub const fn usb() -> Locator {
     locator(CCGR6, CG0)
 }
 
+/// Returns the SAI clock gate locator.
+#[inline(always)]
+pub const fn sai<const N: u8>() -> Locator 
+// FIXME
+// This broke for reasons I don't understand, maybe it'll come to me
+// when I've tried to implement more things
+//where
+//    ral::sai::Instance<N>: ral::Valid
+{
+    [locator(CCGR5, CG9),
+        locator(CCGR5, CG10), 
+        locator(CCGR5, CG11)][N as usize - 1]
+}
+
 /// Returns the ADC clock gate locators.
 #[inline(always)]
 pub const fn adc<const N: u8>() -> Locator
